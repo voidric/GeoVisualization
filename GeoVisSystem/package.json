@@ -1,0 +1,19 @@
+{
+  "name": "geovissystem-app",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "geotiff": "^2.1.4-beta.1",
+    "lil-gui": "^0.21.0",
+    "three": "^0.182.0"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0"
+  }
+}
