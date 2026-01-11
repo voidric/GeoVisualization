@@ -243,7 +243,7 @@ async function initTerrain() {
     folder.add(terrainParams, 'loadFile').name("📂 导入 GeoTIFF");
     folder.add({ mock: () => loadTerrain('MOCK') }, 'mock').name(" Sinc函数");
 
-    folder.add(terrainParams, 'exaggeration', 1.0, 100.0).name("Z轴夸张").onChange(v => {
+    folder.add(terrainParams, 'exaggeration', 0.01, 100.0).name("Z轴夸张").onChange(v => {
         if (ctx.terrainObj && ctx.container) {
             const mesh = ctx.terrainObj.createMesh(v);
             ctx.container.clear();
@@ -345,6 +345,42 @@ async function loadTerrain(url) {
 
         const group = new THREE.Group();
         group.add(mesh);
+
+        // === 应用物理比例修正 ===
+        // 如果我们从 TIF 元数据中获取了物理分辨率（例如：30米/像素），
+        // 那么 Mesh 的 X/Y 应该放大到对应的物理尺寸，Z 已经是米了。
+        // 或者反过来：我们把 Z 缩小，保持 X/Y 是像素坐标。
+        // 既然我们之前假定 X/Y 是像素坐标，那么 Z 轴就需要除以 "米/像素"。
+        // 比如分辨率 30米/像素。X=1代表30米。Z=1代表1米。
+        // 那么 Z 在 Mesh 空间里应该显得很小 (1/30)。
+        // 公式：MeshScaleZ = 1 / PixelResolution (单位：像素/米) -> 也就是 1 / (米/像素)
+
+        let physicalScaleCorrection = 1.0;
+        if (data.physicalScaleX) {
+            // 平局分辨率
+            const avgRes = (data.physicalScaleX + (data.physicalScaleY || data.physicalScaleX)) / 2;
+            if (avgRes > 0) {
+                console.log(`Main: Applying physical aspect ratio correction. Resolution: ${avgRes} m/pixel`);
+                // 我们的 Mesh 平面是 width x height (像素单位)
+                // 高度值是 (米)。
+                // 为了统一到 "像素空间"：
+                // 新高度 = (原高度米) / (分辨率 米/像素)
+                physicalScaleCorrection = 1.0 / avgRes;
+            }
+        }
+
+        // 我们把这个修正应用到 TerrainMesh 内部的 scale 或者外部的 scale
+        // 为了不破坏 exaggeration 逻辑，我们乘进去
+        mesh.scale.set(1, 1, physicalScaleCorrection);
+        // 注意：TerrainMesh 是平面，默认是 X-Y 平面 rotateX 之后变 X-Z。
+        // 原代码: geometry = PlaneGeometry(w, h), rotateX(-PI/2) -> 顶点变 (x, z, -y) or something?
+        // Wait, TerrainMesh.js:
+        // this.geometry = new THREE.PlaneGeometry(width, height, segX, segY);
+        // this.geometry.rotateX(-Math.PI / 2);
+        // posAttr.setY(i, y); -> Y 是高度。
+        // 所以 Mesh 的 Y 轴是高度。
+        mesh.scale.y *= physicalScaleCorrection;
+
 
         const success = applyAutoFit(mesh, 2000);
         if (!success) throw new Error("地形缩放失败 (Scale Error)");
