@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:multi": "vite build -c vite.config.multi.js",
+    "build:single": "vite build -c vite.config.single.js",
     "preview": "vite preview"
   },
   "dependencies": {
