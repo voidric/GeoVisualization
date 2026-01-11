@@ -33,7 +33,8 @@ export class SeismicBody {
         const cy = nSamples / 2;
         const cz = nCrosslines / 2;
 
-        const step = 2; // 优化: 步长 2 (1/8 数据量) 或 3
+        const step = 1;
+        const samplingRate = 0.25; // 降低采样率至 25% (随机采样) 以彻底打破网格规律
 
         // 颜色辅助对象
         const color = new THREE.Color();
@@ -41,6 +42,9 @@ export class SeismicBody {
         for (let il = 0; il < nInlines; il += step) {
             for (let xl = 0; xl < nCrosslines; xl += step) {
                 for (let t = 0; t < nSamples; t += step) {
+                    // 随机采样：有效消除摩尔条纹
+                    if (Math.random() > samplingRate) continue;
+
                     const idx = (il * nCrosslines + xl) * nSamples + t;
                     const val = volume[idx];
                     const absVal = Math.abs(val);
@@ -52,7 +56,13 @@ export class SeismicBody {
                         const y = -t; // 时间深度为负 Y
                         const z = xl - cz;
 
-                        vertices.push(x, y + cy, z); // +cy 使 Y 轴居中
+                        // 即使是随机采样，由于浮点精度，仍建议保留微量扰动，但可减小
+                        const jitter = 0.2;
+                        const jx = (Math.random() - 0.5) * jitter;
+                        const jy = (Math.random() - 0.5) * jitter;
+                        const jz = (Math.random() - 0.5) * jitter;
+
+                        vertices.push(x + jx, y + cy + jy, z + jz);
 
                         // 颜色逻辑
                         if (colorFn) {
@@ -79,9 +89,10 @@ export class SeismicBody {
         this.material = new THREE.PointsMaterial({
             size: this.pointSize,
             vertexColors: true,
-            transparent: true,
-            opacity: 0.8,
+            transparent: false, // 关闭透明度，渲染为实心点
+            opacity: 1.0,
             sizeAttenuation: true
+            // depthWrite 默认为 true
         });
 
         this.mesh = new THREE.Points(this.geometry, this.material);
